@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: risk-assessment-service
+  labels:
+    app: risk-assessment-service
+spec:
+  type: ClusterIP # Or LoadBalancer/NodePort depending on your needs
+  selector:
+    app: risk-assessment-service
+  ports:
+  - protocol: TCP
+    port: 8082       # Port exposed by the service within the cluster
+    targetPort: 8082 # Port your application listens on in the container

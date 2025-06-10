@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 100
+            redis-rate-limiter.burstCapacity: 200
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@userKeyResolver}"
+        - name: CircuitBreaker
+          args:
+            name: applicationServiceCircuitBreaker
+            fallbackUri: forward:/fallback/application-service
+      routes:
+        - id: application-service-route
+          uri: ${APPLICATION_SERVICE_URL:http://localhost:3000}
+          predicates:
+            - Path=/api/loans/**
+      httpclient:
+        response-timeout: 30s
+  redis:
+    host: redis
+    port: 6379
+
+# Resilience4j Circuit Breaker Configuration
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      slidingWindowSize: 100
+      permittedNumberOfCallsInHalfOpenState: 10
+      failureRateThreshold: 50
+      waitDurationInOpenState: 10s
+  instances:
+    applicationServiceCircuitBreaker:
+      baseConfig: default
+
+# CORS Configuration
+spring.cloud.gateway.globalcors:
+  cors-configurations:
+    '[/**]':
+      allowedOrigins: "*"
+      allowedMethods:
+        - GET
+        - POST
+      allowedHeaders: "*"
+
+# Security Configuration for JWT
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri: http://localhost:8081/realms/master/protocol/openid-connect/certs # Replace with your actual Auth Server (e.g., Keycloak) URI
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    reactor.netty.http.client: DEBUG

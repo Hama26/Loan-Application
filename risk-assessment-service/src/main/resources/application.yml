@@ -1,0 +1,107 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: risk-assessment-service
+  # Kafka Configuration (placeholder)
+  kafka:
+    bootstrap-servers: kafka:9092
+    consumer:
+      group-id: risk-assessment-group
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  # Redis Configuration (placeholder)
+  data:
+    redis:
+      host: redis
+      port: 6379
+  # PostgreSQL Configuration (placeholder)
+  datasource:
+    url: jdbc:postgresql://postgres:5432/loan_db
+    username: user
+    password: password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate # Or none, as schema is managed by init.sql
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Resilience4j configurations
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      registerHealthIndicator: true
+      slidingWindowType: COUNT_BASED
+      slidingWindowSize: 10
+      minimumNumberOfCalls: 5
+      permittedNumberOfCallsInHalfOpenState: 3
+      automaticTransitionFromOpenToHalfOpenEnabled: true
+      waitDurationInOpenState: 10s # Increased from 5s for more recovery time
+      failureRateThreshold: 60 # Increased from 50
+      eventConsumerBufferSize: 10
+      recordExceptions:
+        - org.springframework.web.reactive.function.client.WebClientRequestException
+        - com.example.riskassessmentservice.client.CentralBankApiClient.CentralApiException
+        - java.util.concurrent.TimeoutException
+        - java.io.IOException
+    shared:
+      slidingWindowSize: 100
+      permittedNumberOfCallsInHalfOpenState: 30
+      waitDurationInOpenState: 10s
+      failureRateThreshold: 50
+      eventConsumerBufferSize: 10
+  instances:
+    centralBankApi:
+      baseConfig: default
+      # Specific overrides for centralBankApi if needed, e.g.:
+      # failureRateThreshold: 70
+      # waitDurationInOpenState: 30s
+
+resilience4j.retry:
+  configs:
+    default:
+      maxAttempts: 3
+      waitDuration: 200ms # Increased from 100ms
+      retryExceptions:
+        - org.springframework.web.reactive.function.client.WebClientRequestException
+        - com.example.riskassessmentservice.client.CentralBankApiClient.CentralApiException
+        - java.util.concurrent.TimeoutException
+        - java.io.IOException
+      ignoreExceptions:
+        - org.springframework.web.reactive.function.client.WebClientResponseException$BadRequest # Don't retry on 4xx errors that are not transient
+  instances:
+    centralBankApi:
+      baseConfig: default
+      # Specific overrides for centralBankApi retry if needed, e.g.:
+      # maxAttempts: 5
+
+resilience4j.bulkhead:
+  configs:
+    default:
+      maxConcurrentCalls: 20 # Increased from 10
+      maxWaitDuration: 0 # Fail fast if bulkhead is full
+  instances:
+    centralBankApi: # Specific bulkhead for the Central Bank API client
+      maxConcurrentCalls: 10 # Limit concurrent calls to Central Bank API
+      maxWaitDuration: 500ms # Wait up to 500ms if bulkhead is full before failing
+    default: # Default bulkhead for other components if not specified
+      maxConcurrentCalls: 20
+      maxWaitDuration: 0
+
+# Micrometer metrics export (e.g., to Prometheus)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics,circuitbreakers,retry,bulkhead,ratelimiters,threadpools"
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

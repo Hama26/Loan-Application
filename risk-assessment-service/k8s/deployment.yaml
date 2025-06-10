@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-assessment-service
+  labels:
+    app: risk-assessment-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: risk-assessment-service
+  template:
+    metadata:
+      labels:
+        app: risk-assessment-service
+    spec:
+      containers:
+      - name: risk-assessment-service
+        image: your-docker-registry/risk-assessment-service:latest # TODO: Replace with your actual image path
+        ports:
+        - containerPort: 8082
+        env:
+        # Environment variables can be defined here to override application.yml properties
+        # For example:
+        # - name: SPRING_DATASOURCE_URL
+        #   value: "jdbc:postgresql://your-db-host:5432/loan_db"
+        # - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        #   value: "your-kafka-host:9092"
+        # - name: SPRING_DATA_REDIS_HOST
+        #   value: "your-redis-host"
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8082
+          initialDelaySeconds: 30 # Adjust as needed
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8082
+          initialDelaySeconds: 60 # Adjust as needed
+          periodSeconds: 15
